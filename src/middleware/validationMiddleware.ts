@@ -1,5 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import { body, validationResult, ValidationChain } from 'express-validator';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { body, validationResult } from 'express-validator';
+import type { ValidationChain } from 'express-validator';
 
 /**
  * Middleware para lidar com o resultado das validações do express-validator.
@@ -17,7 +18,7 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
  * Validação para o corpo da requisição ao criar uma nova ocorrência.
  * Garante que todos os campos obrigatórios estão presentes e no formato correto.
  */
-export const validateOcorrencia: ValidationChain[] = [
+export const validateOcorrencia: (ValidationChain | RequestHandler)[] = [
     body('usuarioId')
         .isString()
         .notEmpty()
@@ -58,7 +59,7 @@ export const validateOcorrencia: ValidationChain[] = [
  * Exemplo de validação para a criação de um novo usuário.
  * Pode ser adaptada para sua rota de autenticação.
  */
-export const validateUser: ValidationChain[] = [
+export const validateUser: (ValidationChain | RequestHandler)[] = [
     body('email')
         .isEmail()
         .withMessage('E-mail inválido.'),
