@@ -2,7 +2,7 @@
 import mongoose from 'mongoose';
 
 // Pega a URL de conexão do MongoDB das variáveis de ambiente
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/pedromartss007';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongo:QesydXajnqGpnSRgiddlcERUsHAtTJfY@shuttle.proxy.rlwy.net:37405';
 
 const connectDB = async () => {
   try {
