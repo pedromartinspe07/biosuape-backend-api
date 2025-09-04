@@ -1,41 +1,81 @@
 {
+
   "name": "biosuape-backend-api",
+
   "version": "1.0.0",
+
   "main": "dist/server.js",
+
   "scripts": {
-  "start": "node dist/server.js",
-  "prepare": "chmod +x node_modules/.bin/tsc",
-  "build": "tsc",
-  "dev": "nodemon --exec ts-node src/server.ts",
-  "prebuild": "node clean.js",
-  "postbuild": "echo 'Build concluído com sucesso! ✅'",
-  "test": "echo \"Error: no test specified\" && exit 1"
-},
-  "dependencies": {
-    "bcrypt": "^6.0.0",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
-    "express": "^4.21.2",
-    "express-validator": "^7.2.1",
-    "helmet": "^8.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongodb": "^6.19.0",
-    "mongoose": "^8.18.0",
-    "morgan": "^1.10.1",
-    "validator": "^13.15.15"
+
+    "start": "node dist/server.js",
+
+    "build": "tsc",
+
+    "dev": "nodemon --exec ts-node src/server.ts",
+
+    "prebuild": "chmod +x node_modules/.bin/tsc",
+
+    "test": "echo \"Error: no test specified\" && exit 1"
+
   },
+
+  "dependencies": {
+
+    "bcrypt": "^6.0.0",
+
+    "cors": "^2.8.5",
+
+    "dotenv": "^17.2.2",
+
+    "express": "^4.21.2",
+
+    "express-validator": "^7.2.1",
+
+    "helmet": "^8.1.0",
+
+    "jsonwebtoken": "^9.0.2",
+
+    "mongodb": "^6.19.0",
+
+    "mongoose": "^8.18.0",
+
+    "mongoose-bcrypt": "^1.11.0",
+
+    "morgan": "^1.10.1",
+
+    "pg": "^8.16.3",
+
+    "typescript": "^5.9.2",
+
+    "validator": "^13.15.15"
+
+  },
+
   "devDependencies": {
+
     "@types/bcrypt": "^6.0.0",
+
     "@types/cors": "^2.8.19",
+
     "@types/express": "^4.17.23",
+
     "@types/jsonwebtoken": "^9.0.10",
+
     "@types/mongoose": "^5.11.96",
+
     "@types/morgan": "^1.9.10",
+
     "@types/node": "^24.3.0",
+
+    "@types/pg": "^8.15.5",
+
     "@types/validator": "^13.15.3",
+
     "nodemon": "^3.1.10",
-    "rimraf": "^6.0.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+
+    "ts-node": "^10.9.2"
+
   }
-}
+
+} 
