@@ -3,33 +3,37 @@
 import { Router } from 'express';
 
 // Importa os controladores
-import { createOcorrencia, getOcorrencias, getRelatorio, getMapaCalor } from '../controllers/ocorrenciaController';
+import { createOcorrencia, getOcorrencias, getRelatorio, getMapaCalor, getMinhasOcorrencias } from '../controllers/ocorrenciaController';
 import { register, login } from '../controllers/authController';
 
 // Importa os middlewares
 import { authMiddleware } from '../middleware/authMiddleware';
 import { validateLogin, validateRegister, validateOcorrencia } from '../middleware/validationMiddleware'; 
 
-// Cria o router principal da API com um prefixo de versão
+// Cria o router principal da API com um prefixo de versão, para manter a lógica de versionamento centralizada
 const apiRouter = Router();
 
-// --- Rotas Públicas (sem autenticação) ---
-// Perfeito para endpoints de login e registro
-apiRouter.post('/v1/register', validateRegister, register);
-apiRouter.post('/v1/login', validateLogin, login);
+// Agrupa todas as rotas da versão 1
+const v1Router = Router();
 
-// O endpoint de mapa de calor pode ser público, pois não expõe dados sensíveis do usuário
-apiRouter.get('/v1/mapa-calor', getMapaCalor);
+// --- Rotas Públicas (sem autenticação) ---
+v1Router.post('/register', validateRegister, register);
+v1Router.post('/login', validateLogin, login);
+v1Router.get('/mapa-calor', getMapaCalor);
 
 // --- Rotas Protegidas (com autenticação) ---
-// Use o middleware de autenticação para proteger todas as rotas abaixo
-apiRouter.use('/v1', authMiddleware);
+// O middleware de autenticação é aplicado a todas as rotas que vêm depois desta linha
+v1Router.use(authMiddleware);
 
 // Rotas de Ocorrências
-apiRouter.post('/v1/ocorrencias', validateOcorrencia, createOcorrencia);
-apiRouter.get('/v1/ocorrencias', getOcorrencias);
+v1Router.post('/ocorrencias', validateOcorrencia, createOcorrencia);
+v1Router.get('/ocorrencias', getOcorrencias);
+v1Router.get('/ocorrencias/minhas', getMinhasOcorrencias)
 
 // Rotas de Relatórios e Análises
-apiRouter.get('/v1/relatorio', getRelatorio);
+v1Router.get('/relatorio', getRelatorio);
+
+// Usa o router de versão no router principal
+apiRouter.use('/v1', v1Router);
 
 export default apiRouter;

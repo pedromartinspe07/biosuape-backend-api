@@ -22,6 +22,7 @@ apiRouter.use('/v1', authMiddleware_1.authMiddleware);
 // Rotas de Ocorrências
 apiRouter.post('/v1/ocorrencias', validationMiddleware_1.validateOcorrencia, ocorrenciaController_1.createOcorrencia);
 apiRouter.get('/v1/ocorrencias', ocorrenciaController_1.getOcorrencias);
+apiRouter.get('/v1/ocorrencias/minhas', ocorrenciaController_1.getMinhasOcorrencias)
 // Rotas de Relatórios e Análises
 apiRouter.get('/v1/relatorio', ocorrenciaController_1.getRelatorio);
 exports.default = apiRouter;
