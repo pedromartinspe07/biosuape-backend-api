@@ -1,4 +1,5 @@
 "use strict";
+// src/controllers/authController.ts
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -15,60 +16,81 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = exports.register = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
-// A chave secreta é carregada das variáveis de ambiente.
-const JWT_SECRET = process.env.JWT_SECRET || 'f56adae08b238399c78d163ea1ec0526e51dfd91aadae91cd461b04722f55554c647060943f3b6c0203b2caa8bdd078cfcd576b860802a643aa0ed3366631f21';
+const AppError_1 = require("../utils/AppError");
+// A chave secreta deve ser carregada das variáveis de ambiente.
+const JWT_SECRET = process.env.JWT_SECRET;
+// Garante que a chave secreta JWT esteja configurada no ambiente.
+if (!JWT_SECRET) {
+    console.error('ERRO: Variável de ambiente JWT_SECRET não está definida.');
+    // Isso deve ser tratado no server.ts para um erro mais explícito.
+}
+/**
+ * Função utilitária para gerar um token JWT.
+ * @param id O ID do usuário.
+ * @param email O e-mail do usuário.
+ * @returns O token JWT assinado.
+ */
+const signToken = (id, email) => {
+    return jsonwebtoken_1.default.sign({ id, email }, JWT_SECRET, {
+        expiresIn: '1d',
+    });
+};
 /**
  * @route POST /api/v1/register
  * @desc Registra um novo usuário no sistema.
- * A validação dos campos é feita pelo validationMiddleware.
+ * @access Public
  */
-const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const register = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { nome, email, password } = req.body;
     try {
+        // Validação de e-mail duplicado
         const existingUser = yield User_1.default.findOne({ email });
         if (existingUser) {
-            return res.status(409).json({ message: 'Este e-mail já está em uso.' });
+            return next(new AppError_1.AppError('Este e-mail já está em uso.', 409));
         }
         const newUser = new User_1.default({ nome, email, password });
         yield newUser.save();
-        return res.status(201).json({ message: 'Usuário cadastrado com sucesso!' });
+        const token = signToken(newUser._id.toString(), newUser.email);
+        res.status(201).json({
+            message: 'Usuário cadastrado com sucesso!',
+            token,
+            user: {
+                id: newUser._id,
+                nome: newUser.nome,
+                email: newUser.email,
+            }
+        });
     }
     catch (error) {
-        console.error('Erro ao cadastrar usuário:', error);
-        return res.status(500).json({ message: 'Erro ao cadastrar usuário.', error });
+        next(error); // Passa o erro para o middleware de erro global.
     }
 });
 exports.register = register;
 /**
  * @route POST /api/v1/login
  * @desc Autentica um usuário e retorna um token JWT.
- * A validação dos campos é feita pelo validationMiddleware.
+ * @access Public
  */
-const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password } = req.body;
     try {
-        const user = yield User_1.default.findOne({ email }).select('+password');
-        if (!user) {
-            return res.status(401).json({ message: 'Credenciais inválidas.' });
+        // Busca o usuário e seleciona o campo 'password' para comparação.
+        const user = yield User_1.default.findByEmail(email, true);
+        if (!user || !(yield user.comparePassword(password))) {
+            return next(new AppError_1.AppError('Credenciais inválidas.', 401));
         }
-        // O plugin `mongoose-bcrypt` adiciona o método comparePassword.
-        const isMatch = yield user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Credenciais inválidas.' });
-        }
-        const payload = {
-            id: user._id,
-            email: user.email,
-        };
-        if (typeof JWT_SECRET !== 'string') {
-            throw new Error('A chave secreta JWT não está configurada corretamente.');
-        }
-        const token = jsonwebtoken_1.default.sign(payload, JWT_SECRET, { expiresIn: '1d' });
-        return res.status(200).json({ token });
+        const token = signToken(user._id.toString(), user.email);
+        res.status(200).json({
+            token,
+            user: {
+                id: user._id,
+                nome: user.nome,
+                email: user.email,
+            }
+        });
     }
     catch (error) {
-        console.error('Erro ao fazer login:', error);
-        return res.status(500).json({ message: 'Erro ao fazer login.' });
+        next(error); // Passa o erro para o middleware de erro global.
     }
 });
 exports.login = login;

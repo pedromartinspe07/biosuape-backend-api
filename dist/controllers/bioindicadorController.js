@@ -1,4 +1,5 @@
 "use strict";
+// src/controllers/bioindicadorController.ts
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -14,50 +15,57 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteBioindicador = exports.updateBioindicador = exports.getBioindicadorById = exports.getBioindicadores = exports.createBioindicador = void 0;
 const Bioindicador_1 = __importDefault(require("../models/Bioindicador"));
+const AppError_1 = require("../utils/AppError");
 const mongoose_1 = __importDefault(require("mongoose"));
 /**
  * @route POST /api/v1/bioindicadores
  * @desc Cria um novo bioindicador.
- * @access Private
+ * @access Private (apenas para admins)
  */
-const createBioindicador = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const createBioindicador = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    // A validação de `admin` será feita por um middleware de autorização separado.
     try {
-        const { nomePopular, nomeCientifico, descricao, funcaoBioindicadora, imageUrl } = req.body;
-        const novoBioindicador = new Bioindicador_1.default({
-            nomePopular,
-            nomeCientifico,
-            descricao,
-            funcaoBioindicadora,
-            imageUrl,
-        });
-        yield novoBioindicador.save();
-        return res.status(201).json(novoBioindicador);
+        const novoBioindicador = new Bioindicador_1.default(req.body);
+        const bioindicadorSalvo = yield novoBioindicador.save();
+        res.status(201).json(bioindicadorSalvo);
     }
     catch (error) {
         if (error instanceof mongoose_1.default.Error.ValidationError) {
-            return res.status(400).json({ message: error.message });
+            return next(new AppError_1.AppError(error.message, 400));
         }
-        console.error('Erro ao criar bioindicador:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao criar o bioindicador.' });
+        next(error); // Passa outros erros para o middleware de erro global
     }
 });
 exports.createBioindicador = createBioindicador;
 /**
  * @route GET /api/v1/bioindicadores
- * @desc Obtém todos os bioindicadores com suporte a paginação.
+ * @desc Obtém todos os bioindicadores com paginação e busca por nome.
  * @access Public
  * @query {number} page - Número da página.
  * @query {number} limit - Número de itens por página.
+ * @query {string} search - Termo de busca para nome popular ou científico.
  */
-const getBioindicadores = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const getBioindicadores = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    const searchQuery = req.query.search;
+    const filter = {};
+    if (searchQuery) {
+        const regex = new RegExp(searchQuery, 'i'); // 'i' para case-insensitive
+        filter.$or = [
+            { nomePopular: regex },
+            { nomeCientifico: regex },
+        ];
+    }
     try {
-        const bioindicadores = yield Bioindicador_1.default.find().skip(skip).limit(limit).sort({ createdAt: -1 });
-        const totalBioindicadores = yield Bioindicador_1.default.countDocuments();
+        const bioindicadores = yield Bioindicador_1.default.find(filter)
+            .skip(skip)
+            .limit(limit)
+            .sort({ nomePopular: 1 });
+        const totalBioindicadores = yield Bioindicador_1.default.countDocuments(filter);
         const totalPages = Math.ceil(totalBioindicadores / limit);
-        return res.status(200).json({
+        res.status(200).json({
             data: bioindicadores,
             page,
             limit,
@@ -66,8 +74,7 @@ const getBioindicadores = (req, res) => __awaiter(void 0, void 0, void 0, functi
         });
     }
     catch (error) {
-        console.error('Erro ao buscar bioindicadores:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao buscar bioindicadores.' });
+        next(error);
     }
 });
 exports.getBioindicadores = getBioindicadores;
@@ -76,27 +83,29 @@ exports.getBioindicadores = getBioindicadores;
  * @desc Obtém um bioindicador específico pelo ID.
  * @access Public
  */
-const getBioindicadorById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const getBioindicadorById = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     try {
         const bioindicador = yield Bioindicador_1.default.findById(id);
         if (!bioindicador) {
-            return res.status(404).json({ message: 'Bioindicador não encontrado.' });
+            return next(new AppError_1.AppError('Bioindicador não encontrado.', 404));
         }
-        return res.status(200).json(bioindicador);
+        res.status(200).json(bioindicador);
     }
     catch (error) {
-        console.error('Erro ao buscar bioindicador por ID:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao buscar bioindicador.' });
+        if (error instanceof mongoose_1.default.Error.CastError) {
+            return next(new AppError_1.AppError('ID do bioindicador inválido.', 400));
+        }
+        next(error);
     }
 });
 exports.getBioindicadorById = getBioindicadorById;
 /**
  * @route PUT /api/v1/bioindicadores/:id
  * @desc Atualiza um bioindicador existente.
- * @access Private
+ * @access Private (apenas para admins)
  */
-const updateBioindicador = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const updateBioindicador = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     try {
         const bioindicadorAtualizado = yield Bioindicador_1.default.findByIdAndUpdate(id, req.body, {
@@ -104,33 +113,37 @@ const updateBioindicador = (req, res) => __awaiter(void 0, void 0, void 0, funct
             runValidators: true, // Executa as validações do schema
         });
         if (!bioindicadorAtualizado) {
-            return res.status(404).json({ message: 'Bioindicador não encontrado.' });
+            return next(new AppError_1.AppError('Bioindicador não encontrado.', 404));
         }
-        return res.status(200).json(bioindicadorAtualizado);
+        res.status(200).json(bioindicadorAtualizado);
     }
     catch (error) {
-        console.error('Erro ao atualizar bioindicador:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao atualizar o bioindicador.' });
+        if (error instanceof mongoose_1.default.Error.CastError) {
+            return next(new AppError_1.AppError('ID do bioindicador inválido.', 400));
+        }
+        next(error);
     }
 });
 exports.updateBioindicador = updateBioindicador;
 /**
  * @route DELETE /api/v1/bioindicadores/:id
  * @desc Deleta um bioindicador existente.
- * @access Private
+ * @access Private (apenas para admins)
  */
-const deleteBioindicador = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const deleteBioindicador = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     try {
         const bioindicadorDeletado = yield Bioindicador_1.default.findByIdAndDelete(id);
         if (!bioindicadorDeletado) {
-            return res.status(404).json({ message: 'Bioindicador não encontrado.' });
+            return next(new AppError_1.AppError('Bioindicador não encontrado.', 404));
         }
-        return res.status(200).json({ message: 'Bioindicador deletado com sucesso.' });
+        res.status(204).end(); // Resposta 204 indica sucesso sem conteúdo
     }
     catch (error) {
-        console.error('Erro ao deletar bioindicador:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao deletar o bioindicador.' });
+        if (error instanceof mongoose_1.default.Error.CastError) {
+            return next(new AppError_1.AppError('ID do bioindicador inválido.', 400));
+        }
+        next(error);
     }
 });
 exports.deleteBioindicador = deleteBioindicador;

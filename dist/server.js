@@ -1,4 +1,5 @@
 "use strict";
+// src/server.ts
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -15,32 +16,54 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const helmet_1 = __importDefault(require("helmet"));
+const morgan_1 = __importDefault(require("morgan"));
 const api_1 = __importDefault(require("./routes/api"));
 const db_1 = __importDefault(require("./config/db"));
+const AppError_1 = require("./utils/AppError"); // Classe de erro personalizada
+// Carrega as variáveis de ambiente do arquivo .env
 dotenv_1.default.config();
-// Variáveis de ambiente
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-// Middleware
+// --- Configuração e Middlewares de Segurança ---
+// Habilita o CORS para permitir requisições de outras origens
 app.use((0, cors_1.default)());
+// Adiciona o middleware Helmet para segurança HTTP
+app.use((0, helmet_1.default)());
+// Analisa o corpo da requisição em JSON
 app.use(express_1.default.json());
-// Rotas da API
-app.use('/api/v1', api_1.default);
-// Tratamento de rotas não encontradas (404)
+// Logger de requisições, útil para depuração
+if (NODE_ENV === 'development') {
+    app.use((0, morgan_1.default)('dev'));
+}
+// --- Rotas da API ---
+// As rotas da API são prefixadas com /api para clareza e versionamento
+app.use('/api', api_1.default);
+// --- Tratamento de Erros ---
+// Middleware para lidar com rotas não encontradas (404)
 app.use((req, res, next) => {
-    res.status(404).json({ message: 'Rota não encontrada.' });
+    const error = new AppError_1.AppError('A rota solicitada não foi encontrada.', 404);
+    next(error);
 });
 // Middleware de tratamento de erros global
 app.use((err, req, res, next) => {
-    console.error(err.stack); // Loga o stack trace do erro no console do servidor
-    // Constrói a resposta de erro com base no ambiente
-    const errorResponse = Object.assign({ message: 'Algo deu errado no servidor!' }, (NODE_ENV === 'development' && { error: err.stack }));
-    res.status(500).json(errorResponse);
+    // Define o status do erro (padrão 500) e a mensagem
+    const statusCode = err.statusCode || 500;
+    const message = err.message || 'Erro interno do servidor';
+    // Loga o erro completo em ambiente de desenvolvimento
+    if (NODE_ENV === 'development') {
+        console.error(`Status: ${statusCode}, Mensagem: ${message}`);
+        console.error(err.stack);
+    }
+    // Envia a resposta de erro ao cliente
+    res.status(statusCode).json(Object.assign({ status: 'error', message: message }, (NODE_ENV === 'development' && { stack: err.stack })));
 });
-// Iniciar o servidor somente após a conexão com o banco de dados
+// --- Inicialização do Servidor ---
+// Função assíncrona para conectar ao banco de dados e iniciar o servidor
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        // Conecta ao MongoDB antes de iniciar o servidor
         yield (0, db_1.default)();
         app.listen(PORT, () => {
             console.log(`Servidor rodando em ambiente de ${NODE_ENV} na porta ${PORT}`);
@@ -48,7 +71,7 @@ const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     catch (error) {
         console.error('Falha ao iniciar o servidor:', error);
-        process.exit(1);
+        process.exit(1); // Encerra o processo se a conexão falhar
     }
 });
 startServer();

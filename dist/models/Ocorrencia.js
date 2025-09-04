@@ -1,4 +1,5 @@
 "use strict";
+// src/models/Ocorrencia.ts
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -15,51 +16,74 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
+// =======================
+// ESQUEMA DO MONGOOSE
+// =======================
 // Definição do esquema do Mongoose para a coleção de ocorrências.
 const OcorrenciaSchema = new mongoose_1.Schema({
     usuarioId: {
-        type: String,
-        required: [true, 'O ID do usuário é obrigatório.'],
-        trim: true,
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'User', // Referência ao modelo de usuário
+        required: [true, 'A ocorrência deve estar associada a um usuário.'],
+        index: true, // Adiciona um índice para consultas mais rápidas
     },
     bioindicadorId: {
-        type: String,
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Bioindicador', // Referência ao modelo de bioindicador (assumindo que ele exista)
         required: [true, 'O ID do bioindicador é obrigatório.'],
+        index: true,
     },
     latitude: {
         type: Number,
         required: [true, 'A latitude é obrigatória.'],
-        min: [-90, 'Latitude deve ser maior ou igual a -90.'],
-        max: [90, 'Latitude deve ser menor ou igual a 90.'],
+        min: [-90, 'Latitude inválida. O valor deve estar entre -90 e 90.'],
+        max: [90, 'Latitude inválida. O valor deve estar entre -90 e 90.'],
     },
     longitude: {
         type: Number,
         required: [true, 'A longitude é obrigatória.'],
-        min: [-180, 'Longitude deve ser maior ou igual a -180.'],
-        max: [180, 'Longitude deve ser menor ou igual a 180.'],
+        min: [-180, 'Longitude inválida. O valor deve estar entre -180 e 180.'],
+        max: [180, 'Longitude inválida. O valor deve estar entre -180 e 180.'],
     },
     dataHoraOcorrencia: {
         type: Date,
         default: Date.now,
+        required: [true, 'A data e hora da ocorrência são obrigatórias.'],
+        index: true,
+        validate: {
+            validator: (value) => value <= new Date(),
+            message: 'A data da ocorrência não pode ser no futuro.',
+        },
     },
     ph: {
         type: Number,
-        min: [0, 'pH deve ser maior ou igual a 0.'],
-        max: [14, 'pH deve ser menor ou igual a 14.'],
+        min: [0, 'O pH deve ser um valor entre 0 e 14.'],
+        max: [14, 'O pH deve ser um valor entre 0 e 14.'],
+        nullable: true, // Permite valores nulos, mas não undefined
     },
     temperaturaAgua: {
         type: Number,
-        // Sugestão de melhoria: adicione uma validação de valor mínimo.
-        min: [0, 'A temperatura da água não pode ser um valor negativo.'],
+        min: [-2, 'A temperatura da água não pode ser negativa.'],
+        nullable: true,
     },
     observacoes: {
         type: String,
@@ -69,9 +93,16 @@ const OcorrenciaSchema = new mongoose_1.Schema({
     imagemUrl: {
         type: String,
         trim: true,
+        validate: {
+            // Exemplo de validação de URL simples
+            validator: (value) => /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/.test(value),
+            message: 'A URL da imagem não é válida.',
+        },
+        nullable: true,
     },
 }, {
-    // Adiciona automaticamente os campos `createdAt` e `updatedAt`.
-    timestamps: true,
+    timestamps: true, // Adiciona automaticamente os campos `createdAt` e `updatedAt`.
 });
-exports.default = mongoose_1.default.model('Ocorrencia', OcorrenciaSchema);
+// Cria e exporta o modelo do Mongoose
+const Ocorrencia = mongoose_1.default.model('Ocorrencia', OcorrenciaSchema);
+exports.default = Ocorrencia;
