@@ -1,50 +1,75 @@
 // src/middleware/authMiddleware.ts
+
 import { Request, Response, NextFunction } from 'express';
 import jwt, { Secret, JwtPayload, TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
+import { AppError } from '../utils/AppError'; // Importa a classe de erro personalizada
 
-// Payload do JWT
+// =======================
+// INTERFACES E TIPAGEM
+// =======================
+
+/**
+ * Interface do payload do token JWT, contendo informações do usuário.
+ */
 export interface AuthPayload extends JwtPayload {
   id: string;
   email: string;
 }
 
-// Interface de request autenticada
+/**
+ * Estende a interface de Request do Express para incluir a propriedade 'user'.
+ * Isso nos permite acessar os dados do usuário em rotas protegidas.
+ */
 export interface AuthenticatedRequest extends Request {
   user?: AuthPayload;
 }
 
-// Chave secreta
-const JWT_SECRET: Secret = process.env.JWT_SECRET || 'f56adae08b238399c78d163ea1ec0526e51dfd91aadae91cd461b04722f55554c647060943f3b6c0203b2caa8bdd078cfcd576b860802a643aa0ed3366631f21';
+// =======================
+// CHAVE SECRETA DO JWT
+// =======================
+
+const JWT_SECRET: Secret = process.env.JWT_SECRET as Secret;
+
+// Garante que a chave secreta JWT esteja configurada no ambiente.
+if (!JWT_SECRET) {
+  console.error('ERRO: Variável de ambiente JWT_SECRET não está definida.');
+  process.exit(1); // Encerra a aplicação se a chave não estiver presente
+}
+
+// =======================
+// MIDDLEWARE DE AUTENTICAÇÃO
+// =======================
 
 /**
  * Middleware para autenticação de token JWT.
+ * * 1. Verifica se o token está presente no cabeçalho 'Authorization'.
+ * 2. Valida o token e extrai o payload.
+ * 3. Anexa os dados do usuário à requisição para uso posterior nos controladores.
+ * 4. Lida com erros de token, como expiração ou invalidade.
  */
 export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
+  // Verifica se o cabeçalho 'Authorization' existe e se está no formato 'Bearer <token>'
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Token de autenticação não fornecido ou formato inválido.' });
+    return next(new AppError('Token de autenticação não fornecido ou formato inválido.', 401));
   }
 
   const token = authHeader.split(' ')[1];
 
   try {
-    // Verifique se a JWT_SECRET é uma string, conforme a tipagem do 'jsonwebtoken'
-    if (typeof JWT_SECRET !== 'string') {
-      throw new Error('A chave secreta JWT não está configurada corretamente.');
-    }
-
     const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
-    req.user = decoded;
+    req.user = decoded; // Adiciona o payload decodificado à requisição
     next();
   } catch (err) {
-    let message = 'Erro na autenticação.';
+    // Lida com erros de validação do token e envia uma resposta 401
     if (err instanceof TokenExpiredError) {
-      message = 'Token de autenticação expirado.';
+      return next(new AppError('Token de autenticação expirado.', 401));
     } else if (err instanceof JsonWebTokenError) {
-      message = 'Token de autenticação inválido.';
+      return next(new AppError('Token de autenticação inválido.', 401));
+    } else {
+      // Erro genérico
+      return next(new AppError('Erro na autenticação.', 401));
     }
-
-    return res.status(401).json({ message });
   }
 };

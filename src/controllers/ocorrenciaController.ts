@@ -1,106 +1,153 @@
 // src/controllers/ocorrenciaController.ts
-import { Request, Response } from 'express';
+
+import { Request, Response, NextFunction } from 'express';
 import Ocorrencia from '../models/Ocorrencia';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { AppError } from '../utils/AppError';
 import mongoose from 'mongoose';
 
 /**
  * @route POST /api/v1/ocorrencias
- * @desc Cria uma nova ocorrência.
+ * @desc Cria uma nova ocorrência para o usuário logado.
  * @access Private
  */
-export const createOcorrencia = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
-  if (!req.user) {
-    return res.status(401).json({ message: 'Usuário não autenticado.' });
-  }
+export const createOcorrencia = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const usuarioId = req.user?.id;
 
-  const { bioindicadorId, latitude, longitude, observacoes, ph, temperaturaAgua, imagemUrl } = req.body;
-  const usuarioId = req.user.id;
+    if (!usuarioId) {
+        return next(new AppError('Usuário não autenticado.', 401));
+    }
 
-  try {
-    const novaOcorrencia = new Ocorrencia({
-      usuarioId,
-      bioindicadorId,
-      latitude,
-      longitude,
-      observacoes,
-      ph,
-      temperaturaAgua,
-      imagemUrl,
-    });
-    await novaOcorrencia.save();
+    try {
+        const novaOcorrencia = new Ocorrencia({
+            ...req.body,
+            usuarioId,
+            dataHoraOcorrencia: req.body.dataHoraOcorrencia || new Date(),
+        });
+        
+        await novaOcorrencia.save();
+        res.status(201).json(novaOcorrencia);
 
-    return res.status(201).json(novaOcorrencia);
-  } catch (error) {
-    console.error('Erro ao criar ocorrência:', error);
-    return res.status(500).json({ message: 'Erro interno do servidor ao criar a ocorrência.' });
-  }
+    } catch (error) {
+        if (error instanceof mongoose.Error.ValidationError) {
+            return next(new AppError(error.message, 400));
+        }
+        next(error);
+    }
 };
 
 /**
  * @route GET /api/v1/ocorrencias
- * @desc Obtém todas as ocorrências com suporte opcional a paginação e filtros.
+ * @desc Obtém todas as ocorrências com suporte a paginação e filtros.
  * @access Public
  * @query {number} page - Número da página.
  * @query {number} limit - Número de itens por página.
  * @query {string} bioindicadorId - Filtra por ID do bioindicador.
  */
-export const getOcorrencias = async (req: Request, res: Response): Promise<Response> => {
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 10;
-  const bioindicadorId = req.query.bioindicadorId as string;
+export const getOcorrencias = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+    const bioindicadorId = req.query.bioindicadorId as string;
 
-  const query: mongoose.FilterQuery<any> = {};
-  if (bioindicadorId) {
-    query.bioindicadorId = bioindicadorId;
-  }
+    const filter: mongoose.FilterQuery<any> = {};
+    if (bioindicadorId) {
+        filter.bioindicadorId = bioindicadorId;
+    }
 
-  try {
-    const ocorrencias = await Ocorrencia.find(query)
-      .skip((page - 1) * limit)
-      .limit(limit);
+    try {
+        const ocorrencias = await Ocorrencia.find(filter)
+            .populate('bioindicadorId', 'nomePopular nomeCientifico') // Retorna os dados do bioindicador
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
-    const totalOcorrencias = await Ocorrencia.countDocuments(query);
-    const totalPages = Math.ceil(totalOcorrencias / limit);
+        const totalOcorrencias = await Ocorrencia.countDocuments(filter);
 
-    return res.status(200).json({
-      data: ocorrencias,
-      page,
-      limit,
-      totalPages,
-      totalOcorrencias,
-    });
-  } catch (error) {
-    console.error('Erro ao buscar ocorrências:', error);
-    return res.status(500).json({ message: 'Erro interno do servidor ao buscar ocorrências.' });
-  }
+        res.status(200).json({
+            data: ocorrencias,
+            page,
+            limit,
+            totalOcorrencias,
+            totalPages: Math.ceil(totalOcorrencias / limit),
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * @route GET /api/v1/ocorrencias/minhas
+ * @desc Obtém todas as ocorrências do usuário logado.
+ * @access Private
+ */
+export const getMinhasOcorrencias = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const usuarioId = req.user?.id;
+
+    if (!usuarioId) {
+        return next(new AppError('Usuário não autenticado.', 401));
+    }
+
+    try {
+        const minhasOcorrencias = await Ocorrencia.find({ usuarioId })
+            .populate('bioindicadorId', 'nomePopular nomeCientifico')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json(minhasOcorrencias);
+    } catch (error) {
+        next(error);
+    }
 };
 
 /**
  * @route GET /api/v1/relatorio
- * @desc Gera um relatório estatístico de ocorrências.
+ * @desc Gera um relatório estatístico de ocorrências para o usuário logado.
  * @access Private
  */
-export const getRelatorio = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
-  try {
-    const relatorio = await Ocorrencia.aggregate([
-      {
-        $group: {
-          _id: '$bioindicadorId',
-          count: { $sum: 1 },
-          avgPh: { $avg: '$ph' },
-          avgTemperaturaAgua: { $avg: '$temperaturaAgua' },
-        },
-      },
-      {
-        $sort: { count: -1 },
-      },
-    ]);
-    return res.status(200).json(relatorio);
-  } catch (error) {
-    console.error('Erro ao gerar relatório:', error);
-    return res.status(500).json({ message: 'Erro interno do servidor ao gerar relatório.' });
-  }
+export const getRelatorio = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const usuarioId = req.user?.id;
+    if (!usuarioId) {
+        return next(new AppError('Usuário não autenticado.', 401));
+    }
+
+    try {
+        const relatorio = await Ocorrencia.aggregate([
+            { $match: { usuarioId: new mongoose.Types.ObjectId(usuarioId) } }, // Filtra por usuário logado
+            {
+                $group: {
+                    _id: '$bioindicadorId',
+                    count: { $sum: 1 },
+                    avgPh: { $avg: '$ph' },
+                    avgTemperaturaAgua: { $avg: '$temperaturaAgua' },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'bioindicadores',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'bioindicador',
+                },
+            },
+            { $unwind: '$bioindicador' }, // Desestrutura o array
+            {
+                $project: {
+                    _id: 0,
+                    bioindicadorId: '$_id',
+                    nomePopular: '$bioindicador.nomePopular',
+                    nomeCientifico: '$bioindicador.nomeCientifico',
+                    count: 1,
+                    avgPh: { $round: ['$avgPh', 2] },
+                    avgTemperaturaAgua: { $round: ['$avgTemperaturaAgua', 2] },
+                },
+            },
+            { $sort: { count: -1 } },
+        ]);
+
+        res.status(200).json(relatorio);
+    } catch (error) {
+        next(error);
+    }
 };
 
 /**
@@ -108,22 +155,31 @@ export const getRelatorio = async (req: AuthenticatedRequest, res: Response): Pr
  * @desc Retorna dados para um mapa de calor.
  * @access Public
  */
-export const getMapaCalor = async (req: Request, res: Response): Promise<Response> => {
-  try {
-    const heatmapData = await Ocorrencia.aggregate([
-      {
-        $group: {
-          _id: {
-            lat: { $trunc: ['$latitude'] },
-            lon: { $trunc: ['$longitude'] },
-          },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-    return res.status(200).json(heatmapData);
-  } catch (error) {
-    console.error('Erro ao gerar dados para mapa de calor:', error);
-    return res.status(500).json({ message: 'Erro interno do servidor ao gerar dados para mapa de calor.' });
-  }
+export const getMapaCalor = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const heatmapData = await Ocorrencia.aggregate([
+            {
+                $group: {
+                    _id: {
+                        lat: { $trunc: ['$latitude'] },
+                        lon: { $trunc: ['$longitude'] },
+                    },
+                    count: { $sum: 1 },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    lat: '$_id.lat',
+                    lon: '$_id.lon',
+                    count: 1,
+                },
+            },
+            { $sort: { count: -1 } },
+        ]);
+
+        res.status(200).json(heatmapData);
+    } catch (error) {
+        next(error);
+    }
 };

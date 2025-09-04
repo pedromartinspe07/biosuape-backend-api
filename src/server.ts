@@ -1,51 +1,85 @@
+// src/server.ts
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import morgan from 'morgan';
 import apiRoutes from './routes/api';
 import connectDB from './config/db';
+import { AppError } from './utils/AppError'; // Classe de erro personalizada
 
+// Carrega as variáveis de ambiente do arquivo .env
 dotenv.config();
 
-// Variáveis de ambiente
 const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Middleware
+// --- Configuração e Middlewares de Segurança ---
+
+// Habilita o CORS para permitir requisições de outras origens
 app.use(cors());
+
+// Adiciona o middleware Helmet para segurança HTTP
+app.use(helmet());
+
+// Analisa o corpo da requisição em JSON
 app.use(express.json());
 
-// Rotas da API
-app.use('/api/v1', apiRoutes);
+// Logger de requisições, útil para depuração
+if (NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
 
-// Tratamento de rotas não encontradas (404)
+// --- Rotas da API ---
+
+// As rotas da API são prefixadas com /api para clareza e versionamento
+app.use('/api', apiRoutes);
+
+// --- Tratamento de Erros ---
+
+// Middleware para lidar com rotas não encontradas (404)
 app.use((req: Request, res: Response, next: NextFunction) => {
-  res.status(404).json({ message: 'Rota não encontrada.' });
+  const error = new AppError('A rota solicitada não foi encontrada.', 404);
+  next(error);
 });
 
 // Middleware de tratamento de erros global
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack); // Loga o stack trace do erro no console do servidor
+app.use((err: AppError, req: Request, res: Response, next: NextFunction) => {
+  // Define o status do erro (padrão 500) e a mensagem
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Erro interno do servidor';
 
-  // Constrói a resposta de erro com base no ambiente
-  const errorResponse = {
-    message: 'Algo deu errado no servidor!',
-    ...(NODE_ENV === 'development' && { error: err.stack }), // Adiciona o stack trace somente em desenvolvimento
-  };
+  // Loga o erro completo em ambiente de desenvolvimento
+  if (NODE_ENV === 'development') {
+    console.error(`Status: ${statusCode}, Mensagem: ${message}`);
+    console.error(err.stack);
+  }
 
-  res.status(500).json(errorResponse);
+  // Envia a resposta de erro ao cliente
+  res.status(statusCode).json({
+    status: 'error',
+    message: message,
+    // Adiciona o stack trace em modo de desenvolvimento para depuração
+    ...(NODE_ENV === 'development' && { stack: err.stack }),
+  });
 });
 
-// Iniciar o servidor somente após a conexão com o banco de dados
+// --- Inicialização do Servidor ---
+
+// Função assíncrona para conectar ao banco de dados e iniciar o servidor
 const startServer = async () => {
   try {
+    // Conecta ao MongoDB antes de iniciar o servidor
     await connectDB();
+    
     app.listen(PORT, () => {
       console.log(`Servidor rodando em ambiente de ${NODE_ENV} na porta ${PORT}`);
     });
   } catch (error) {
     console.error('Falha ao iniciar o servidor:', error);
-    process.exit(1);
+    process.exit(1); // Encerra o processo se a conexão falhar
   }
 };
 

@@ -1,54 +1,64 @@
 // src/controllers/bioindicadorController.ts
-import { Request, Response } from 'express';
+
+import { Request, Response, NextFunction } from 'express';
 import Bioindicador from '../models/Bioindicador';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { AppError } from '../utils/AppError';
 import mongoose from 'mongoose';
 
 /**
  * @route POST /api/v1/bioindicadores
  * @desc Cria um novo bioindicador.
- * @access Private
+ * @access Private (apenas para admins)
  */
-export const createBioindicador = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const createBioindicador = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    // A validação de `admin` será feita por um middleware de autorização separado.
     try {
-        const { nomePopular, nomeCientifico, descricao, funcaoBioindicadora, imageUrl } = req.body;
-        const novoBioindicador = new Bioindicador({
-            nomePopular,
-            nomeCientifico,
-            descricao,
-            funcaoBioindicadora,
-            imageUrl,
-        });
+        const novoBioindicador = new Bioindicador(req.body);
+        const bioindicadorSalvo = await novoBioindicador.save();
+        res.status(201).json(bioindicadorSalvo);
 
-        await novoBioindicador.save();
-        return res.status(201).json(novoBioindicador);
     } catch (error) {
         if (error instanceof mongoose.Error.ValidationError) {
-            return res.status(400).json({ message: error.message });
+            return next(new AppError(error.message, 400));
         }
-        console.error('Erro ao criar bioindicador:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao criar o bioindicador.' });
+        next(error); // Passa outros erros para o middleware de erro global
     }
 };
 
 /**
  * @route GET /api/v1/bioindicadores
- * @desc Obtém todos os bioindicadores com suporte a paginação.
+ * @desc Obtém todos os bioindicadores com paginação e busca por nome.
  * @access Public
  * @query {number} page - Número da página.
  * @query {number} limit - Número de itens por página.
+ * @query {string} search - Termo de busca para nome popular ou científico.
  */
-export const getBioindicadores = async (req: Request, res: Response): Promise<Response> => {
+export const getBioindicadores = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
+    const searchQuery = req.query.search as string;
+
+    const filter: any = {};
+    if (searchQuery) {
+        const regex = new RegExp(searchQuery, 'i'); // 'i' para case-insensitive
+        filter.$or = [
+            { nomePopular: regex },
+            { nomeCientifico: regex },
+        ];
+    }
 
     try {
-        const bioindicadores = await Bioindicador.find().skip(skip).limit(limit).sort({ createdAt: -1 });
-        const totalBioindicadores = await Bioindicador.countDocuments();
+        const bioindicadores = await Bioindicador.find(filter)
+            .skip(skip)
+            .limit(limit)
+            .sort({ nomePopular: 1 });
+
+        const totalBioindicadores = await Bioindicador.countDocuments(filter);
         const totalPages = Math.ceil(totalBioindicadores / limit);
 
-        return res.status(200).json({
+        res.status(200).json({
             data: bioindicadores,
             page,
             limit,
@@ -56,8 +66,7 @@ export const getBioindicadores = async (req: Request, res: Response): Promise<Re
             totalBioindicadores,
         });
     } catch (error) {
-        console.error('Erro ao buscar bioindicadores:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao buscar bioindicadores.' });
+        next(error);
     }
 };
 
@@ -66,27 +75,29 @@ export const getBioindicadores = async (req: Request, res: Response): Promise<Re
  * @desc Obtém um bioindicador específico pelo ID.
  * @access Public
  */
-export const getBioindicadorById = async (req: Request, res: Response): Promise<Response> => {
+export const getBioindicadorById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const { id } = req.params;
 
     try {
         const bioindicador = await Bioindicador.findById(id);
         if (!bioindicador) {
-            return res.status(404).json({ message: 'Bioindicador não encontrado.' });
+            return next(new AppError('Bioindicador não encontrado.', 404));
         }
-        return res.status(200).json(bioindicador);
+        res.status(200).json(bioindicador);
     } catch (error) {
-        console.error('Erro ao buscar bioindicador por ID:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao buscar bioindicador.' });
+        if (error instanceof mongoose.Error.CastError) {
+            return next(new AppError('ID do bioindicador inválido.', 400));
+        }
+        next(error);
     }
 };
 
 /**
  * @route PUT /api/v1/bioindicadores/:id
  * @desc Atualiza um bioindicador existente.
- * @access Private
+ * @access Private (apenas para admins)
  */
-export const updateBioindicador = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const updateBioindicador = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const { id } = req.params;
 
     try {
@@ -96,31 +107,35 @@ export const updateBioindicador = async (req: AuthenticatedRequest, res: Respons
         });
 
         if (!bioindicadorAtualizado) {
-            return res.status(404).json({ message: 'Bioindicador não encontrado.' });
+            return next(new AppError('Bioindicador não encontrado.', 404));
         }
-        return res.status(200).json(bioindicadorAtualizado);
+        res.status(200).json(bioindicadorAtualizado);
     } catch (error) {
-        console.error('Erro ao atualizar bioindicador:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao atualizar o bioindicador.' });
+        if (error instanceof mongoose.Error.CastError) {
+            return next(new AppError('ID do bioindicador inválido.', 400));
+        }
+        next(error);
     }
 };
 
 /**
  * @route DELETE /api/v1/bioindicadores/:id
  * @desc Deleta um bioindicador existente.
- * @access Private
+ * @access Private (apenas para admins)
  */
-export const deleteBioindicador = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const deleteBioindicador = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const { id } = req.params;
 
     try {
         const bioindicadorDeletado = await Bioindicador.findByIdAndDelete(id);
         if (!bioindicadorDeletado) {
-            return res.status(404).json({ message: 'Bioindicador não encontrado.' });
+            return next(new AppError('Bioindicador não encontrado.', 404));
         }
-        return res.status(200).json({ message: 'Bioindicador deletado com sucesso.' });
+        res.status(204).end(); // Resposta 204 indica sucesso sem conteúdo
     } catch (error) {
-        console.error('Erro ao deletar bioindicador:', error);
-        return res.status(500).json({ message: 'Erro interno do servidor ao deletar o bioindicador.' });
+        if (error instanceof mongoose.Error.CastError) {
+            return next(new AppError('ID do bioindicador inválido.', 400));
+        }
+        next(error);
     }
 };

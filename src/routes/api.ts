@@ -1,4 +1,5 @@
 // src/routes/api.ts
+
 import { Router } from 'express';
 
 // Importa os controladores
@@ -7,31 +8,28 @@ import { register, login } from '../controllers/authController';
 
 // Importa os middlewares
 import { authMiddleware } from '../middleware/authMiddleware';
-// Importe o middleware de validação para usuário/login (você pode ter um arquivo como 'validateUser')
-// import { validateUser } from '../middleware/validationMiddleware'; 
+import { validateLogin, validateRegister, validateOcorrencia } from '../middleware/validationMiddleware'; 
 
+// Cria o router principal da API com um prefixo de versão
 const apiRouter = Router();
 
-// --- Rotas de Autenticação ---
-// Sub-router para rotas de autenticação
-const authRouter = Router();
+// --- Rotas Públicas (sem autenticação) ---
+// Perfeito para endpoints de login e registro
+apiRouter.post('/v1/register', validateRegister, register);
+apiRouter.post('/v1/login', validateLogin, login);
 
-// Rotas públicas (não precisam de token)
-// Adicione o middleware de validação aqui se você tiver um.
-authRouter.post('/register', register); 
-authRouter.post('/login', login);
+// O endpoint de mapa de calor pode ser público, pois não expõe dados sensíveis do usuário
+apiRouter.get('/v1/mapa-calor', getMapaCalor);
 
-// Anexa o sub-router ao router principal
-apiRouter.use(authRouter);
+// --- Rotas Protegidas (com autenticação) ---
+// Use o middleware de autenticação para proteger todas as rotas abaixo
+apiRouter.use('/v1', authMiddleware);
 
-// --- Rotas para Ocorrências ---
-// Rotas que exigem autenticação
-apiRouter.post('/ocorrencias', authMiddleware, createOcorrencia);
-apiRouter.get('/ocorrencias', getOcorrencias);
+// Rotas de Ocorrências
+apiRouter.post('/v1/ocorrencias', validateOcorrencia, createOcorrencia);
+apiRouter.get('/v1/ocorrencias', getOcorrencias);
 
-// --- Rotas para Relatórios e Análises ---
-// Rotas que exigem autenticação
-apiRouter.get('/relatorio', authMiddleware, getRelatorio);
-apiRouter.get('/mapa-calor', getMapaCalor);
+// Rotas de Relatórios e Análises
+apiRouter.get('/v1/relatorio', getRelatorio);
 
 export default apiRouter;
