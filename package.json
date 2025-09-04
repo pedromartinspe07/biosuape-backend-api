@@ -4,6 +4,7 @@
   "main": "dist/server.js",
   "scripts": {
   "start": "node dist/server.js",
+  "prepare": "chmod +x node_modules/.bin/tsc",
   "build": "tsc",
   "dev": "nodemon --exec ts-node src/server.ts",
   "prebuild": "node clean.js",
