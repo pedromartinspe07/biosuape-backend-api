@@ -1,18 +1,18 @@
+// src/models/User.ts
 import mongoose, { Schema, Document, Model, Query } from 'mongoose';
 import { isEmail } from 'validator';
-import mongooseBcrypt from 'mongoose-bcrypt';
+import bcrypt from 'bcrypt';
 
-// Adicionando o método `comparePassword` à interface do Mongoose Document
-// A interface IUser já tem a definição de `comparePassword`.
-interface IUser extends Document {
+// Interface do usuário
+export interface IUser extends Document {
   nome: string;
   email: string;
-  password?: string; // O plugin espera esse nome. Use '?' pois o select: false o torna opcional
+  password?: string;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-// A tipagem para o método estático `findByEmail`
-interface UserModel extends Model<IUser> {
+// Interface do modelo com método estático
+export interface UserModel extends Model<IUser> {
   findByEmail(email: string, selectPassword?: boolean): Query<IUser | null, IUser>;
 }
 
@@ -30,13 +30,11 @@ const UserSchema: Schema<IUser> = new Schema(
       lowercase: true,
       trim: true,
       validate: [isEmail, 'Por favor, insira um e-mail válido.'],
-      // Adicionando um índice para otimizar as buscas
       index: true,
     },
     password: {
       type: String,
       required: [true, 'A senha é obrigatória.'],
-      bcrypt: true, // Necessário para o plugin
       select: false, // Não retorna a senha por padrão
     },
   },
@@ -45,8 +43,20 @@ const UserSchema: Schema<IUser> = new Schema(
   }
 );
 
-// Plugin para hash de senha e comparePassword
-UserSchema.plugin(mongooseBcrypt);
+// Middleware para fazer o hash da senha antes de salvar
+UserSchema.pre<IUser>('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password as string, salt);
+  next();
+});
+
+// Método de instância para comparar a senha
+UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password as string);
+};
 
 // Método estático para buscar por e-mail
 UserSchema.statics.findByEmail = function (
