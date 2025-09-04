@@ -15,39 +15,43 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = exports.register = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
-const secret = process.env.JWT_SECRET || '9eebcc594b55de2cb61907cecedde68733686119e573a77d46f13c687485b48d883b0e02ad5e0e6693699f586259da84264979676a1e10d09a1fbde0eb36ddd2';
-// Cadastro de usuário
+// A chave secreta é carregada das variáveis de ambiente.
+const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_key';
+/**
+ * @route POST /api/v1/register
+ * @desc Registra um novo usuário no sistema.
+ * A validação dos campos é feita pelo validationMiddleware.
+ */
 const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Ajustado para 'username' e 'password' para coincidir com o frontend
-    const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-        return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
-    }
+    const { nome, email, password } = req.body;
     try {
         const existingUser = yield User_1.default.findOne({ email });
         if (existingUser) {
-            return res.status(409).json({ message: 'Este email já está em uso.' });
+            return res.status(409).json({ message: 'Este e-mail já está em uso.' });
         }
-        // Agora o modelo User receberá as variáveis corretas.
-        const newUser = new User_1.default({ nome: username, email, password });
+        const newUser = new User_1.default({ nome, email, password });
         yield newUser.save();
-        res.status(201).json({ message: 'Usuário cadastrado com sucesso!' });
+        return res.status(201).json({ message: 'Usuário cadastrado com sucesso!' });
     }
     catch (error) {
-        res.status(500).json({ message: 'Erro ao cadastrar usuário.', error });
+        console.error('Erro ao cadastrar usuário:', error);
+        return res.status(500).json({ message: 'Erro ao cadastrar usuário.', error });
     }
 });
 exports.register = register;
-// Login de usuário
+/**
+ * @route POST /api/v1/login
+ * @desc Autentica um usuário e retorna um token JWT.
+ * A validação dos campos é feita pelo validationMiddleware.
+ */
 const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Ajustado para 'password' para coincidir com o frontend
     const { email, password } = req.body;
     try {
         const user = yield User_1.default.findOne({ email }).select('+password');
         if (!user) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
-        // A função comparePassword agora recebe a variável correta.
+        // O plugin `mongoose-bcrypt` adiciona o método comparePassword.
         const isMatch = yield user.comparePassword(password);
         if (!isMatch) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
@@ -56,11 +60,15 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             id: user._id,
             email: user.email,
         };
-        const token = jsonwebtoken_1.default.sign(payload, secret, { expiresIn: '1d' });
-        res.status(200).json({ token });
+        if (typeof JWT_SECRET !== 'string') {
+            throw new Error('A chave secreta JWT não está configurada corretamente.');
+        }
+        const token = jsonwebtoken_1.default.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+        return res.status(200).json({ token });
     }
     catch (error) {
-        res.status(500).json({ message: 'Erro ao fazer login.', error });
+        console.error('Erro ao fazer login:', error);
+        return res.status(500).json({ message: 'Erro ao fazer login.' });
     }
 });
 exports.login = login;

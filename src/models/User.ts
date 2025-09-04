@@ -1,19 +1,19 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Document, Model, Query } from 'mongoose';
 import { isEmail } from 'validator';
+import mongooseBcrypt from 'mongoose-bcrypt';
 
-// Interface do usuário
-export interface IUser extends Document {
+// Adicionando o método `comparePassword` à interface do Mongoose Document
+// A interface IUser já tem a definição de `comparePassword`.
+interface IUser extends Document {
   nome: string;
   email: string;
-  password: string; // O plugin espera esse nome
-  createdAt: Date;
-  updatedAt: Date;
+  password?: string; // O plugin espera esse nome. Use '?' pois o select: false o torna opcional
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-// Interface do modelo com método estático
-export interface UserModel extends Model<IUser> {
-  findByEmail(email: string, selectPassword?: boolean): Promise<IUser | null>;
+// A tipagem para o método estático `findByEmail`
+interface UserModel extends Model<IUser> {
+  findByEmail(email: string, selectPassword?: boolean): Query<IUser | null, IUser>;
 }
 
 const UserSchema: Schema<IUser> = new Schema(
@@ -30,12 +30,14 @@ const UserSchema: Schema<IUser> = new Schema(
       lowercase: true,
       trim: true,
       validate: [isEmail, 'Por favor, insira um e-mail válido.'],
+      // Adicionando um índice para otimizar as buscas
+      index: true,
     },
     password: {
       type: String,
       required: [true, 'A senha é obrigatória.'],
       bcrypt: true, // Necessário para o plugin
-      select: false,
+      select: false, // Não retorna a senha por padrão
     },
   },
   {
@@ -44,18 +46,18 @@ const UserSchema: Schema<IUser> = new Schema(
 );
 
 // Plugin para hash de senha e comparePassword
-UserSchema.plugin(require('mongoose-bcrypt'));
+UserSchema.plugin(mongooseBcrypt);
 
 // Método estático para buscar por e-mail
-UserSchema.statics.findByEmail = async function (
+UserSchema.statics.findByEmail = function (
   email: string,
   selectPassword: boolean = false
-): Promise<IUser | null> {
-  let query = this.findOne({ email });
+): Query<IUser | null, IUser> {
+  const query = this.findOne({ email });
   if (selectPassword) {
-    query = query.select('+password');
+    query.select('+password');
   }
-  return await query;
+  return query;
 };
 
 const User = mongoose.model<IUser, UserModel>('User', UserSchema);

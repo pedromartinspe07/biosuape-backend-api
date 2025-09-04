@@ -15,14 +15,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getMapaCalor = exports.getRelatorio = exports.getOcorrencias = exports.createOcorrencia = void 0;
 const Ocorrencia_1 = __importDefault(require("../models/Ocorrencia"));
 /**
- * Cria uma nova ocorrência com base nos dados fornecidos na requisição.
- * Agora utiliza o ID do usuário do token de autenticação.
+ * @route POST /api/v1/ocorrencias
+ * @desc Cria uma nova ocorrência.
+ * @access Private
  */
 const createOcorrencia = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // A validação de entrada agora é feita pelo validationMiddleware.
+    if (!req.user) {
+        return res.status(401).json({ message: 'Usuário não autenticado.' });
+    }
     const { bioindicadorId, latitude, longitude, observacoes, ph, temperaturaAgua, imagemUrl } = req.body;
-    const user = req.user;
-    const usuarioId = user.id;
+    const usuarioId = req.user.id;
     try {
         const novaOcorrencia = new Ocorrencia_1.default({
             usuarioId,
@@ -35,18 +37,21 @@ const createOcorrencia = (req, res) => __awaiter(void 0, void 0, void 0, functio
             imagemUrl,
         });
         yield novaOcorrencia.save();
-        res.status(201).json(novaOcorrencia);
+        return res.status(201).json(novaOcorrencia);
     }
     catch (error) {
         console.error('Erro ao criar ocorrência:', error);
-        res.status(500).json({ message: 'Erro interno do servidor ao criar a ocorrência.' });
+        return res.status(500).json({ message: 'Erro interno do servidor ao criar a ocorrência.' });
     }
 });
 exports.createOcorrencia = createOcorrencia;
 /**
- * Obtém todas as ocorrências com suporte opcional a paginação e filtros.
- * @param {Request} req - A requisição. Pode conter parâmetros de query 'page', 'limit' e 'bioindicadorId'.
- * @param {Response} res - A resposta.
+ * @route GET /api/v1/ocorrencias
+ * @desc Obtém todas as ocorrências com suporte opcional a paginação e filtros.
+ * @access Public
+ * @query {number} page - Número da página.
+ * @query {number} limit - Número de itens por página.
+ * @query {string} bioindicadorId - Filtra por ID do bioindicador.
  */
 const getOcorrencias = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const page = parseInt(req.query.page) || 1;
@@ -62,7 +67,7 @@ const getOcorrencias = (req, res) => __awaiter(void 0, void 0, void 0, function*
             .limit(limit);
         const totalOcorrencias = yield Ocorrencia_1.default.countDocuments(query);
         const totalPages = Math.ceil(totalOcorrencias / limit);
-        res.status(200).json({
+        return res.status(200).json({
             data: ocorrencias,
             page,
             limit,
@@ -72,13 +77,14 @@ const getOcorrencias = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
     catch (error) {
         console.error('Erro ao buscar ocorrências:', error);
-        res.status(500).json({ message: 'Erro interno do servidor ao buscar ocorrências.' });
+        return res.status(500).json({ message: 'Erro interno do servidor ao buscar ocorrências.' });
     }
 });
 exports.getOcorrencias = getOcorrencias;
 /**
- * Gera um relatório estatístico de ocorrências.
- * Atualmente retorna um esqueleto de dados agrupados por bioindicador.
+ * @route GET /api/v1/relatorio
+ * @desc Gera um relatório estatístico de ocorrências.
+ * @access Private
  */
 const getRelatorio = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -95,21 +101,21 @@ const getRelatorio = (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 $sort: { count: -1 },
             },
         ]);
-        res.status(200).json(relatorio);
+        return res.status(200).json(relatorio);
     }
     catch (error) {
         console.error('Erro ao gerar relatório:', error);
-        res.status(500).json({ message: 'Erro interno do servidor ao gerar relatório.' });
+        return res.status(500).json({ message: 'Erro interno do servidor ao gerar relatório.' });
     }
 });
 exports.getRelatorio = getRelatorio;
 /**
- * Retorna dados para um mapa de calor, agrupando ocorrências em uma grade de coordenadas.
- * A lógica é simplificada para fins de demonstração.
+ * @route GET /api/v1/mapa-calor
+ * @desc Retorna dados para um mapa de calor.
+ * @access Public
  */
 const getMapaCalor = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        // Exemplo de agregação para agrupar ocorrências por localização (simplificado)
         const heatmapData = yield Ocorrencia_1.default.aggregate([
             {
                 $group: {
@@ -121,11 +127,11 @@ const getMapaCalor = (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 },
             },
         ]);
-        res.status(200).json(heatmapData);
+        return res.status(200).json(heatmapData);
     }
     catch (error) {
         console.error('Erro ao gerar dados para mapa de calor:', error);
-        res.status(500).json({ message: 'Erro interno do servidor ao gerar dados para mapa de calor.' });
+        return res.status(500).json({ message: 'Erro interno do servidor ao gerar dados para mapa de calor.' });
     }
 });
 exports.getMapaCalor = getMapaCalor;

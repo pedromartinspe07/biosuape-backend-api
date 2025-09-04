@@ -1,4 +1,5 @@
 "use strict";
+// src/models/Bioindicador.ts
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -22,47 +23,36 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const validator_1 = require("validator");
-const mongoose_bcrypt_1 = __importDefault(require("mongoose-bcrypt"));
-const UserSchema = new mongoose_1.Schema({
-    nome: {
+// Definição do esquema do Mongoose para a coleção de bioindicadores
+const BioindicadorSchema = new mongoose_1.Schema({
+    nomePopular: {
         type: String,
-        required: [true, 'O nome é obrigatório.'],
+        required: [true, 'O nome popular é obrigatório.'],
         trim: true,
     },
-    email: {
+    nomeCientifico: {
         type: String,
-        required: [true, 'O e-mail é obrigatório.'],
-        unique: true,
-        lowercase: true,
+        required: [true, 'O nome científico é obrigatório.'],
+        unique: true, // Garante que não haverá bioindicadores duplicados pelo nome científico
         trim: true,
-        validate: [validator_1.isEmail, 'Por favor, insira um e-mail válido.'],
-        // Adicionando um índice para otimizar as buscas
-        index: true,
     },
-    password: {
+    descricao: {
         type: String,
-        required: [true, 'A senha é obrigatória.'],
-        bcrypt: true, // Necessário para o plugin
-        select: false, // Não retorna a senha por padrão
+        required: [true, 'A descrição é obrigatória.'],
+    },
+    funcaoBioindicadora: {
+        type: String,
+        required: [true, 'A função bioindicadora é obrigatória.'],
+    },
+    imageUrl: {
+        type: String,
+        required: [true, 'A URL da imagem é obrigatória.'],
     },
 }, {
-    timestamps: true,
+    timestamps: true, // Adiciona automaticamente os campos createdAt e updatedAt
 });
-// Plugin para hash de senha e comparePassword
-UserSchema.plugin(mongoose_bcrypt_1.default);
-// Método estático para buscar por e-mail
-UserSchema.statics.findByEmail = function (email, selectPassword = false) {
-    const query = this.findOne({ email });
-    if (selectPassword) {
-        query.select('+password');
-    }
-    return query;
-};
-const User = mongoose_1.default.model('User', UserSchema);
-exports.default = User;
+// Cria e exporta o modelo do Mongoose
+const Bioindicador = mongoose_1.default.model('Bioindicador', BioindicadorSchema);
+exports.default = Bioindicador;

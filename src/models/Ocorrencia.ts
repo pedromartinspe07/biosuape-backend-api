@@ -50,6 +50,8 @@ const OcorrenciaSchema: Schema = new Schema(
     },
     temperaturaAgua: {
       type: Number,
+      // Sugestão de melhoria: adicione uma validação de valor mínimo.
+      min: [0, 'A temperatura da água não pode ser um valor negativo.'],
     },
     observacoes: {
       type: String,

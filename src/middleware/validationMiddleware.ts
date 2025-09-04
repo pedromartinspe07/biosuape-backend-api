@@ -3,8 +3,8 @@ import { body, validationResult } from 'express-validator';
 import type { ValidationChain } from 'express-validator';
 
 /**
- * Middleware para lidar com o resultado das validações do express-validator.
- * Se houver erros, envia uma resposta 400. Caso contrário, passa para o próximo middleware.
+ * Middleware para lidar com o resultado das validações.
+ * Se houver erros, envia uma resposta 400.
  */
 const handleValidationErrors = (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
@@ -15,24 +15,23 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
 };
 
 /**
- * Validação para o corpo da requisição ao criar uma nova ocorrência.
- * Garante que todos os campos obrigatórios estão presentes e no formato correto.
+ * Validações específicas para a criação de uma nova Ocorrência.
  */
-export const validateOcorrencia: (ValidationChain | RequestHandler)[] = [
-    body('usuarioId')
-        .isString()
-        .notEmpty()
-        .withMessage('O ID do usuário é obrigatório.'),
+const validateOcorrenciaRules: ValidationChain[] = [
+    // Usando .isMongoId() é mais preciso do que .isString() para IDs do MongoDB
     body('bioindicadorId')
-        .isString()
-        .notEmpty()
-        .withMessage('O ID do bioindicador é obrigatório.'),
+        .isMongoId()
+        .withMessage('O ID do bioindicador é obrigatório e deve ser um ID válido.'),
     body('latitude')
         .isFloat({ min: -90, max: 90 })
         .withMessage('A latitude deve ser um número entre -90 e 90.'),
     body('longitude')
         .isFloat({ min: -180, max: 180 })
         .withMessage('A longitude deve ser um número entre -180 e 180.'),
+    body('dataHora')
+        .optional()
+        .isISO8601()
+        .withMessage('O campo dataHora deve ser uma data válida no formato ISO 8601.'),
     body('ph')
         .optional()
         .isFloat({ min: 0, max: 14 })
@@ -43,30 +42,37 @@ export const validateOcorrencia: (ValidationChain | RequestHandler)[] = [
         .withMessage('A temperatura da água deve ser um número válido.'),
     body('observacoes')
         .optional()
-        .isString()
         .isLength({ max: 250 })
         .withMessage('As observações não podem ter mais de 250 caracteres.'),
-    body('imagemUrl')
+    body('imageUrl')
         .optional()
         .isURL()
         .withMessage('A URL da imagem não é válida.'),
-
-    // Middleware final para tratar os erros de validação
-    handleValidationErrors,
 ];
 
 /**
- * Exemplo de validação para a criação de um novo usuário.
- * Pode ser adaptada para sua rota de autenticação.
+ * Validações para a criação de um novo usuário.
  */
-export const validateUser: (ValidationChain | RequestHandler)[] = [
+const validateUserRules: ValidationChain[] = [
+    body('nome')
+        .isString()
+        .notEmpty()
+        .withMessage('O nome do usuário é obrigatório.'),
     body('email')
         .isEmail()
         .withMessage('E-mail inválido.'),
     body('password')
         .isLength({ min: 6 })
         .withMessage('A senha deve ter no mínimo 6 caracteres.'),
-    
-    // Middleware final para tratar os erros de validação
-    handleValidationErrors,
+];
+
+// Combine as regras de validação com o middleware de tratamento de erros
+export const validateOcorrencia = [
+    ...validateOcorrenciaRules,
+    handleValidationErrors
+];
+
+export const validateUser = [
+    ...validateUserRules,
+    handleValidationErrors
 ];
