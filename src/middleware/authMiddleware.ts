@@ -62,14 +62,19 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
     req.user = decoded; // Adiciona o payload decodificado à requisição
     next();
   } catch (err) {
+    // Adiciona log para depuração mais detalhada
+    if (err instanceof Error) {
+        console.error(`Erro de validação do token: ${err.message}`);
+    }
+    
     // Lida com erros de validação do token e envia uma resposta 401
     if (err instanceof TokenExpiredError) {
       return next(new AppError('Token de autenticação expirado.', 401));
     } else if (err instanceof JsonWebTokenError) {
       return next(new AppError('Token de autenticação inválido.', 401));
     } else {
-      // Erro genérico
-      return next(new AppError('Erro na autenticação.', 401));
+      // Erros inesperados
+      return next(new AppError('Erro interno ao validar o token.', 500));
     }
   }
 };
